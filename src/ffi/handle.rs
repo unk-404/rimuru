@@ -216,22 +216,27 @@ pub(crate) fn release(handle: RmHandle) -> RmStatus {
     if page.is_null() {
         return RM_INVALID_HANDLE;
     }
-    // SAFETY: live page; swap atomically revokes the token exactly once.
+    // SAFETY: the page is published for the process lifetime.
     let page = unsafe { &*page };
-    let previous = page.slots[index % SLOTS_PER_PAGE].swap(None);
-    let Some(record) = previous else {
+    // Insert and release share this lock. Check the generation before revoking:
+    // a stale token must never clear a newer token that reused the same slot.
+    let mut allocator = ALLOCATOR
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let entry = &page.slots[index % SLOTS_PER_PAGE];
+    let Some(record) = entry.load_full() else {
         return RM_INVALID_HANDLE;
     };
     if record.generation != generation {
         return RM_INVALID_HANDLE;
     }
-    let mut allocator = ALLOCATOR
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    entry.store(None);
     allocator.live = allocator.live.saturating_sub(1);
     if record.generation < GENERATION_MASK {
         allocator.free.push(slot);
     }
+    drop(allocator);
+    drop(record);
     super::abi::RM_OK
 }
 

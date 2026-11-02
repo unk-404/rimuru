@@ -215,8 +215,9 @@ fn abi_64bit_layout_is_frozen() {
 
 #[test]
 fn header_lists_exactly_the_frozen_export_manifest() {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/include/rimuru.h");
-    let header = std::fs::read_to_string(path).expect("generated header is committed");
+    // Embed the checked-in header: cross-compiled test binaries run on devices
+    // where the build machine's CARGO_MANIFEST_DIR does not exist.
+    let header = include_str!("../../include/rimuru.h");
     let mut functions = BTreeSet::new();
     for line in header.lines() {
         let line = line.trim();
@@ -278,6 +279,46 @@ fn handle_generations_reject_stale_tokens() {
     assert_eq!(handle::release(waiter_handle), RM_OK);
     assert_eq!(handle::release(cloned), RM_OK);
     assert_eq!(handle::release(cloned), RM_INVALID_HANDLE);
+}
+
+#[test]
+fn releasing_a_stale_handle_never_revokes_the_reused_slot() {
+    let budget = Budget::new(1 << 20, None);
+    let cq = Cq::new(budget, 4).unwrap();
+    let slot_mask = if usize::BITS == 64 {
+        u32::MAX as usize
+    } else {
+        u16::MAX as usize
+    };
+    for _ in 0..1000 {
+        let old = handle::insert(Object::Cq(cq.clone())).unwrap();
+        assert_eq!(handle::release(old), RM_OK);
+        let current = handle::insert(Object::Cq(cq.clone())).unwrap();
+        if old & slot_mask == current & slot_mask {
+            assert_ne!(old, current);
+            assert_eq!(handle::release(old), RM_INVALID_HANDLE);
+            assert!(
+                handle::pin_cq(current).is_ok(),
+                "stale release revoked live token"
+            );
+            thread::scope(|scope| {
+                for _ in 0..4 {
+                    scope.spawn(|| {
+                        for _ in 0..100 {
+                            assert_eq!(handle::release(old), RM_INVALID_HANDLE);
+                        }
+                    });
+                }
+                for _ in 0..100 {
+                    assert!(handle::pin_cq(current).is_ok());
+                }
+            });
+            assert_eq!(handle::release(current), RM_OK);
+            return;
+        }
+        assert_eq!(handle::release(current), RM_OK);
+    }
+    panic!("could not exercise a reused handle slot");
 }
 
 #[test]

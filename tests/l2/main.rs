@@ -287,6 +287,7 @@ fn lost_complete_and_first_delayed_ping_still_converge() {
     let (_env, a, b, s, relay) = relayed(
         support::Faults {
             drop_once: vec![(11, 1, 1), (14, 0, 0)],
+            hold_complete_until_ping_drop: true,
             ..support::Faults::default()
         },
         config(1200),
@@ -295,12 +296,14 @@ fn lost_complete_and_first_delayed_ping_still_converge() {
     let frame = b.recv_timeout(Duration::from_secs(5)).unwrap();
     assert_eq!(frame.as_slice(), b"completion after lost ping");
     ticket.wait_timeout(Duration::from_secs(5)).unwrap();
-    assert_eq!(
-        relay
-            .stats
-            .dropped
-            .load(std::sync::atomic::Ordering::Relaxed),
-        2
+    let drops = &relay.stats.injected_drops;
+    assert!(
+        drops[0].load(std::sync::atomic::Ordering::Relaxed) >= 1,
+        "PING not dropped"
+    );
+    assert!(
+        drops[1].load(std::sync::atomic::Ordering::Relaxed) >= 1,
+        "COMPLETE not dropped"
     );
     assert!(matches!(b.try_recv(), Err(Error::WouldBlock)));
     a.close().unwrap();

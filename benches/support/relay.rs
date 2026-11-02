@@ -37,6 +37,8 @@ pub struct Faults {
     pub reorder_every: u64,
     /// `(wire kind, flags, direction)`; drops the first match.
     pub drop_once: Vec<(u8, u8, u8)>,
+    /// Suppress COMPLETE retransmissions until a configured first PING is dropped.
+    pub hold_complete_until_ping_drop: bool,
     /// Drop the first forward reliable DATA datagram with this fragment index.
     pub drop_data_index_once: Option<u32>,
     pub corrupt_data_once: bool,
@@ -139,6 +141,11 @@ impl Relay {
                         if let Some(index) = directed {
                             faults.drop_once.remove(index);
                         }
+                        if directed.is_some() && (kind, flags, direction) == (14, 0, 0) {
+                            faults.hold_complete_until_ping_drop = false;
+                        }
+                        let held_complete = faults.hold_complete_until_ping_drop
+                            && (kind, flags, direction) == (11, 1, 1);
                         let index = if direction == 0 && flags == 1 {
                             match kind {
                                 0 if len >= 15 => {
@@ -158,6 +165,7 @@ impl Relay {
                         }
                         if blocked.load(Relaxed)
                             || directed.is_some()
+                            || held_complete
                             || drop_index
                             || rng.next_u32() % 1_000_000 < faults.loss_ppm
                         {

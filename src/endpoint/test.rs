@@ -307,6 +307,9 @@ fn interleaved_peers_and_malformed_fragments_preserve_valid_frames() {
         max_peers: 4,
         frame_capacity: 8,
         orphan_bytes: 65536,
+        // The deliberately interleaved sequence spans many scheduler turns on
+        // simulators; expiry itself is covered by a separate test.
+        frame_timeout: Duration::from_secs(15),
         ..EndpointConfig::default()
     };
     let a = Endpoint::bind_on(&runtime, "127.0.0.1:0".parse().unwrap(), cfg.clone()).unwrap();
@@ -337,6 +340,9 @@ fn interleaved_peers_and_malformed_fragments_preserve_valid_frames() {
             &data_packet(session.state.local, id, 0, width, &data[..stride]),
         );
         foreign.send(b"cross-peer").unwrap();
+        let foreign_frame = b.recv_timeout(Duration::from_secs(8)).unwrap();
+        assert_eq!(foreign_frame.peer_addr(), c.local_addr().unwrap());
+        assert_eq!(foreign_frame.as_slice(), b"cross-peer");
         send(&runtime, &a, &b, &piece1);
         let bad = vec![0x91; stride];
         send(
@@ -399,20 +405,9 @@ fn interleaved_peers_and_malformed_fragments_preserve_valid_frames() {
                 ),
             );
         }
-        let frames = [
-            b.recv_timeout(Duration::from_secs(2)).unwrap(),
-            b.recv_timeout(Duration::from_secs(2)).unwrap(),
-        ];
-        assert!(
-            frames
-                .iter()
-                .any(|f| f.peer_addr() == a.local_addr().unwrap() && f.as_slice() == data)
-        );
-        assert!(
-            frames
-                .iter()
-                .any(|f| f.peer_addr() == c.local_addr().unwrap() && f.as_slice() == b"cross-peer")
-        );
+        let frame = b.recv_timeout(Duration::from_secs(8)).unwrap();
+        assert_eq!(frame.peer_addr(), a.local_addr().unwrap());
+        assert_eq!(frame.as_slice(), data);
     }
     a.close().unwrap();
     b.close().unwrap();
