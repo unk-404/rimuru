@@ -6,7 +6,7 @@
 
 **Message transport over UDP, written in Rust.**
 
-`0.0.1-beta` · single crate · one socket per endpoint
+<img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Funk-404%2Frimuru%2Frefs%2Fheads%2Fmaster%2FCargo.toml&query=%24.package.version&style=flat-square&label=Version">
 
 [Getting started](#getting-started) · [Transport layers](#transport-layers) · [C API](#c-api) · [Versioning](#versioning) · [Development](#development)
 
@@ -16,9 +16,9 @@
 
 Rimuru is a message-oriented transport library with unreliable frames, reliable messages, and ordered channels. Create an endpoint and the library manages its I/O runtime; applications do not need to construct one.
 
-The name is a nod to Rimuru Tempest from *That Time I Got Reincarnated as a Slime*. This is an independent project, unaffiliated with the original work or its rights holders. The banner is an original, generated illustration, not an official character or asset.
+> The name is a nod to Rimuru Tempest from *That Time I Got Reincarnated as a Slime*. This is an independent project, unaffiliated with the original work or its rights holders. The banner is an original, generated illustration, not an official character or asset.
 
-## Transport layers
+## 🌋 Transport layers
 
 | Layer | Delivery | Use when |
 |:--|:--|:--|
@@ -28,11 +28,11 @@ The name is a nod to Rimuru Tempest from *That Time I Got Reincarnated as a Slim
 
 Delivery guarantees depend on a live session, available resources, and successful recovery. Persistence across process crashes is outside the current scope. CRC32C detects accidental corruption; **Rimuru does not provide encryption or authentication**.
 
-## Getting started
+## 🍰 Getting started
 
 The first release is planned as `0.0.1-beta`. See [Cargo.toml](Cargo.toml) for the required Rust version.
 
-```rust
+``` rust
 use rimuru::{Endpoint, EndpointConfig};
 
 #[tokio::main]
@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 The example uses Tokio as the application executor. Add it to your application's dependencies alongside Rimuru:
 
-```toml
+``` toml
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -64,7 +64,7 @@ For L3, create a channel with `session.channel(id)` and use `channel.submit_asyn
 
 Run the complete example with `cargo run --example quickstart`.
 
-## C API
+## 🚀 C API
 
 The crate builds an `rlib`, static library, and dynamic library. [`include/rimuru.h`](include/rimuru.h) is generated with cbindgen; [`examples/ffi_async.c`](examples/ffi_async.c) demonstrates the C API. Handles are thread-safe and completion events can be polled in batches.
 
@@ -75,17 +75,15 @@ cbindgen --config cbindgen.toml --crate rimuru --lang c --output include/rimuru.
 
 Native wait sources use Windows events, Linux/Android eventfd, and Apple pipes. Host integration supports IOCP or kqueue on the respective platforms. Availability and platform validation are described in the design documents.
 
-## Versioning
+## 🧾 Versioning
 
-Releases follow **`X.Y.Z-beta`**:
+Releases follow **`X.Y.Z`**:
 
 - **X** changes when application protocol versions are incompatible. The intended handshake discovery envelope remains readable across X versions so an application can select a matching implementation.
 - **Y** adds compatible protocol content: an older Y ignores optional additions, and a newer Y accepts older data. Extensions must be skippable and preserve existing semantics.
 - **Z** leaves protocol content unchanged and covers internal logic or API changes.
 
-The current handshake accepts only the exact protocol version `0.0`. Cross-major discovery, automatic implementation switching, and cross-minor extension compatibility **are not implemented yet**. The C ABI has a separate version from the package and network protocol.
-
-## Development
+## 🤓 Development
 
 ```sh
 cargo fmt --all -- --check
