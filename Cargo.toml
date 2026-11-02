@@ -1,0 +1,96 @@
+[package]
+name = "rimuru"
+version = "0.0.1-beta"
+edition = "2024"
+rust-version = "1.99"
+description = "Bounded single-socket UDP frame transport with L1/L2/L3 and a C FFI"
+autobenches = false
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+allocator-api2 = "0.2.21"
+arc-swap = "1.9.3"
+bitfield = "0.20.0"
+bitvec = "1.1.1"
+blake3 = "1.8.7"
+crc32c = "0.6.8"
+crc-fast = { version = "1.10.0", default-features = false, features = ["std"] }
+crossbeam-queue = "0.3.14"
+dashmap = { version = "6.2.1", features = ["inline", "rayon"] }
+foldhash = "0.2.0"
+getrandom = "0.4.3"
+hashbrown = { version = "0.17.1", features = ["alloc", "rayon"] }
+rayon = "1.12.0"
+socket2 = "0.6.5"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
+zerocopy = { version = "0.8.63", features = ["simd", "alloc", "derive", "std"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Networking_WinSock",
+    "Win32_System_IO",
+    "Win32_System_Threading",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.191"
+
+[dev-dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+criterion = "0.8.2"
+quinn = "0.11.12"
+rand_chacha = "0.9.0"
+rcgen = "0.14.10"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0"
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Threading"] }
+
+[[bench]]
+name = "l1"
+harness = false
+
+[[bench]]
+name = "l1_costs"
+harness = false
+
+[[bench]]
+name = "l2"
+harness = false
+
+[[bench]]
+name = "l3"
+harness = false
+
+[[bench]]
+name = "comparison"
+harness = false
+
+[[bench]]
+name = "udp_goodput"
+harness = false
+
+[[bench]]
+name = "l2_goodput"
+harness = false
+
+[[bench]]
+name = "l3_goodput"
+harness = false
+
+[[test]]
+name = "l2"
+path = "tests/l2/main.rs"
+
+[[test]]
+name = "l3"
+path = "tests/l3/main.rs"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

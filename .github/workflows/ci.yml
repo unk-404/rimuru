@@ -1,0 +1,183 @@
+name: Transport
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked --lib --tests
+      - name: Run README quickstart
+        run: cargo run --locked --example quickstart
+      - name: Test goal report validator
+        run: python -m unittest discover -s benches/scripts -p test_check_goal.py
+      - name: Install pinned cbindgen
+        run: cargo install cbindgen --version 0.29.4
+      - name: Verify generated C header is current
+        shell: bash
+        run: |
+          cbindgen --config cbindgen.toml --crate rimuru --lang c --output include/rimuru.h
+          git diff --exit-code -- include/rimuru.h
+      - name: Build rlib/staticlib/cdylib
+        run: cargo build --locked --lib
+      - name: Compile and link C11 example (Linux)
+        if: runner.os == 'Linux'
+        run: >
+          cc -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Iinclude
+          examples/ffi_async.c target/debug/librimuru.a
+          -lpthread -ldl -lm -o target/ffi-example
+      - name: Compile and link C11 example (macOS)
+        if: runner.os == 'macOS'
+        run: >
+          cc -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Iinclude
+          examples/ffi_async.c target/debug/librimuru.a
+          -lpthread -lm -o target/ffi-example
+      - name: Compile as C++17 (Unix)
+        if: runner.os != 'Windows'
+        run: >
+          c++ -std=c++17 -x c++ -fsyntax-only -Iinclude examples/ffi_async.c
+      - name: Select MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Compile as C++17 (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: cl /nologo /std:c++17 /TP /Iinclude /c examples\ffi_async.c /Fo:target\ffi-example-cpp.obj
+      - name: Run C example (Unix)
+        if: runner.os != 'Windows'
+        run: ./target/ffi-example
+      - name: Compile and link C11 example (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: >
+          cl /nologo /std:c11 /W4 /Iinclude examples\ffi_async.c
+          target\debug\rimuru.lib ws2_32.lib userenv.lib bcrypt.lib ntdll.lib advapi32.lib
+          /Fe:target\ffi-example.exe
+      - name: Run C example (Windows)
+        if: runner.os == 'Windows'
+        run: target\ffi-example.exe
+      - name: Criterion smoke (no performance threshold on shared runners)
+        run: cargo bench --locked --bench l1 -- --test
+      - name: Reliable message Criterion smoke
+        run: cargo bench --locked --bench l2 -- --test
+      - name: Reliable message diagnostics
+        run: cargo bench --locked --bench l2_goodput -- --run --datagrams 4096 --messages 65536 --threads 1 --rounds 1 --duration-ms 100 --warmup-ms 20 --output target/ci-l2.json
+      - name: Loss and feedback recovery diagnostics
+        run: cargo bench --locked --bench l2_goodput -- --run --verify-payload --datagrams 4096 --messages 65536 --threads 1 --rounds 1 --duration-ms 100 --warmup-ms 0 --loss-ppm 100000 --rtt-ms 10 --output target/ci-l2-loss.json
+      - name: Ordered channel Criterion smoke
+        run: cargo bench --locked --bench l3 -- --test
+      - name: Ordered channel paired diagnostics
+        run: cargo bench --locked --bench l3_goodput -- --run --datagrams 4096 --messages 65536 --threads 1 --channels 4 --rounds 1 --duration-ms 100 --warmup-ms 20 --output target/ci-l3.json
+      - name: Ordered channel loss and HOL diagnostics
+        run: cargo bench --locked --bench l3_goodput -- --run --verify-payload --datagrams 4096 --messages 65536 --threads 1 --channels 2 --rounds 1 --duration-ms 100 --warmup-ms 0 --loss-ppm 100000 --rtt-ms 10 --output target/ci-l3-loss.json
+      - name: CRC and copy cost benchmark smoke
+        run: cargo bench --locked --bench l1_costs -- --test
+      - name: Saturation report smoke
+        run: cargo bench --locked --bench udp_goodput -- --run --datagrams 1200 --messages 65536 --threads 1 --rounds 1 --duration-ms 100 --warmup-ms 50 --latency-samples 2 --output target/ci-goodput.json
+      - name: Ordered comparison smoke
+        run: cargo bench --locked --bench comparison -- --test
+      - name: Measured reliable transport benchmark
+        run: cargo bench --locked --bench l3 -- 'ordered_loopback/t1/d65507/c1/w4/l[23]_slice/1048576'
+      - name: Measured ordered comparison benchmark
+        run: cargo bench --locked --bench comparison
+      - name: Prepare comparison series
+        run: python .github/scripts/benchcat-comparison.py
+      - name: Render reliable transport chart
+        uses: unk-404/benchcat@master
+        with:
+          input: target/criterion/ordered_loopback_t1_d65507_c1_w4
+          format: criterion
+          out: target/transport-benchmarks.svg
+      - name: Render ordered comparison chart
+        uses: unk-404/benchcat@master
+        with:
+          config: benchcat-comparison.toml
+          out: target/transport-comparison.svg
+      - name: Verify charts
+        run: python .github/scripts/check-benchcat-svg.py
+      - name: Upload benchmark chart
+        uses: actions/upload-artifact@v4
+        with:
+          name: transport-chart-${{ matrix.os }}
+          path: |
+            target/transport-benchmarks.svg
+            target/transport-comparison.svg
+          if-no-files-found: error
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+      - name: Select simulator target and boot an available iPhone
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(uname -m)" = arm64 ]; then TARGET=aarch64-apple-ios-sim; else TARGET=x86_64-apple-ios; fi
+          rustup target add "$TARGET" aarch64-apple-ios
+          echo "IOS_TEST_TARGET=$TARGET" >> "$GITHUB_ENV"
+          DEVICE=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for k,vs in d["devices"].items() if "iOS" in k for v in vs if "iPhone" in v["name"]))')
+          STATE=$(xcrun simctl list devices --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["state"] for vs in d["devices"].values() for v in vs if v["udid"]==sys.argv[1]))' "$DEVICE")
+          if [ "$STATE" != Booted ]; then xcrun simctl boot "$DEVICE"; fi
+          xcrun simctl bootstatus "$DEVICE" -b
+          RUNNER_KEY=CARGO_TARGET_$(echo "$TARGET" | tr '[:lower:]-' '[:upper:]_')_RUNNER
+          echo "$RUNNER_KEY=xcrun simctl spawn $DEVICE" >> "$GITHUB_ENV"
+      - name: Device library compile
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+        run: cargo check --locked --lib --target aarch64-apple-ios
+      - name: Simulator UDP, protocol and FFI tests
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+        run: cargo test --locked --lib --tests --target "$IOS_TEST_TARGET" -- --test-threads=1
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+          targets: x86_64-linux-android, aarch64-linux-android
+      - name: Configure installed NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK=${ANDROID_NDK_LATEST_HOME:-}
+          if [ -z "$NDK" ]; then NDK=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1); fi
+          BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          test -x "$BIN/x86_64-linux-android26-clang"
+          echo "CC_x86_64_linux_android=$BIN/x86_64-linux-android26-clang" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$BIN/x86_64-linux-android26-clang" >> "$GITHUB_ENV"
+          echo "CC_aarch64_linux_android=$BIN/aarch64-linux-android26-clang" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$BIN/aarch64-linux-android26-clang" >> "$GITHUB_ENV"
+      - name: ARM64 device library compile
+        run: cargo check --locked --lib --target aarch64-linux-android
+      - name: Compile emulator test binaries
+        shell: bash
+        run: cargo test --locked --lib --tests --no-run --target x86_64-linux-android --message-format=json > target/android-tests.jsonl
+      - name: Enable KVM
+        run: sudo chmod a+rw /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          disable-animations: true
+          script: python3 .github/scripts/android-tests.py target/android-tests.jsonl

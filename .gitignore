@@ -1,0 +1,6 @@
+/target
+/benchmark-results/
+**/__pycache__/
+*.py[cod]
+/.agents/*
+!/.agents/docs/

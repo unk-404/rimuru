@@ -1,0 +1,17 @@
+[render]
+title = "Reliable ordered message goodput"
+subtitle = "{platform|CI} · Criterion · {commit:short}"
+footer = "1 MiB · 4 in flight · 1200-byte UDP limit · application CRC32C and receive confirmation"
+bar_scale = "row"
+bar_curve = "linear"
+missing = "placeholder"
+
+[[series]]
+label = "Rimuru L3"
+input = "target/benchcat-rimuru_l3.json"
+format = "json"
+
+[[series]]
+label = "Quinn encrypted stream"
+input = "target/benchcat-quinn_stream.json"
+format = "json"
