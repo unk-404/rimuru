@@ -345,6 +345,7 @@ RmStatus rm_waiter_wait(RmHandle waiter, uint64_t timeout_ns);
 
 #endif  /* RIMURU_H */
 
+#if defined(__cplusplus)
 static_assert(sizeof(RmStatus) == 4, "RmStatus is a 32-bit enum");
 static_assert(sizeof(RmEventKind) == 4, "RmEventKind is a 32-bit enum");
 static_assert(sizeof(RmTicketState) == 4, "RmTicketState is a 32-bit enum");

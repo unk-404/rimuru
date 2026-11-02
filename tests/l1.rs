@@ -160,10 +160,16 @@ fn large_datagram_vectored_slice_sends_preserve_payload_and_empty_frames() {
         for len in [0, 1, 65536, 1048576] {
             let data: Vec<_> = (0..len).map(|i| (i % 251) as u8).collect();
             s.send(&data).unwrap();
-            assert_eq!(
-                b.recv_timeout(Duration::from_secs(3)).unwrap().as_slice(),
-                data
-            );
+            let received = b
+                .recv_timeout(Duration::from_secs(3))
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "L1 D={d} length={len}: {error}; tx={:?}; rx={:?}",
+                        a.metrics(),
+                        b.metrics()
+                    )
+                });
+            assert_eq!(received.as_slice(), data);
         }
         a.close().unwrap();
         b.close().unwrap();
@@ -186,7 +192,15 @@ fn handshake_empty_fragmented_large_and_bidirectional_frames() {
     for n in [0, 1, 1185, 1186, 65536, 1 << 20] {
         let data: Vec<u8> = (0..n).map(|i| (i % 251) as u8).collect();
         session.send(&data).unwrap();
-        let got = b.recv_timeout(Duration::from_secs(3)).unwrap();
+        let got = b
+            .recv_timeout(Duration::from_secs(3))
+            .unwrap_or_else(|error| {
+                panic!(
+                    "L1 D=1200 length={n}: {error}; tx={:?}; rx={:?}",
+                    a.metrics(),
+                    b.metrics()
+                )
+            });
         assert_eq!(got.as_slice(), data);
         assert_eq!(got.peer_addr(), a.local_addr().unwrap());
     }
@@ -368,7 +382,16 @@ fn ipv6_large_frame_preserves_full_fragments_and_tail() {
     let session = a.connect(b.local_addr().unwrap()).unwrap();
     let data: Vec<_> = (0..(1 << 20) + 31).map(|i| (i % 251) as u8).collect();
     session.send(&data).unwrap();
-    let frame = b.recv_timeout(Duration::from_secs(3)).unwrap();
+    let frame = b
+        .recv_timeout(Duration::from_secs(3))
+        .unwrap_or_else(|error| {
+            panic!(
+                "IPv6 L1 D=65507 length={}: {error}; tx={:?}; rx={:?}",
+                data.len(),
+                a.metrics(),
+                b.metrics()
+            )
+        });
     assert_eq!(frame.as_slice(), data);
     a.close().unwrap();
     b.close().unwrap();

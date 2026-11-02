@@ -14,8 +14,16 @@ for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
         tests.append(item["executable"])
 if not tests:
     raise SystemExit("No Android test executables found")
+failures = []
+filter_args = sys.argv[2:]
 for index, executable in enumerate(tests):
     remote = f"/data/local/tmp/rimuru-test-{index}"
     subprocess.run(["adb", "push", executable, remote], check=True)
     subprocess.run(["adb", "shell", "chmod", "700", remote], check=True)
-    subprocess.run(["adb", "shell", remote, "--test-threads=1"], check=True)
+    result = subprocess.run(["adb", "shell", remote, *filter_args, "--test-threads=1"], check=False)
+    if result.returncode:
+        failures.append((executable, result.returncode))
+if failures:
+    for executable, code in failures:
+        print(f"Android test binary failed ({code}): {executable}", file=sys.stderr)
+    raise SystemExit(1)

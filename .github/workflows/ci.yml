@@ -183,4 +183,15 @@ jobs:
           api-level: 30
           arch: x86_64
           disable-animations: true
-          script: python3 .github/scripts/android-tests.py target/android-tests.jsonl
+          script: |
+            # Verify reliable large messages with the emulator's default UDP limits.
+            python3 .github/scripts/android-tests.py target/android-tests.jsonl reliable_empty_fragmented_large_and_bidirectional
+            # L1 intentionally cannot recover dropped UDP fragments. Allow the
+            # 4 MiB socket buffer already requested by the full-frame tests.
+            adb root
+            adb wait-for-device
+            adb shell 'echo 4194304 > /proc/sys/net/core/rmem_max && echo 4194304 > /proc/sys/net/core/wmem_max'
+            adb unroot
+            adb wait-for-device
+            adb shell 'cat /proc/sys/net/core/rmem_max /proc/sys/net/core/wmem_max'
+            python3 .github/scripts/android-tests.py target/android-tests.jsonl
