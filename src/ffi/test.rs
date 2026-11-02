@@ -425,8 +425,10 @@ fn ffi_waiter_wakes_host_kqueue_on_published_event() {
     // SAFETY: the queue and output event are valid for the call.
     let count = unsafe { libc::kevent(kq, std::ptr::null(), 0, &mut event, 1, &timeout) };
     assert_eq!(count, 1);
-    assert_eq!(event.ident, ident);
-    assert_eq!(event.filter, libc::EVFILT_USER);
+    let event_ident = event.ident;
+    let event_filter = event.filter;
+    assert_eq!(event_ident, ident);
+    assert_eq!(event_filter, libc::EVFILT_USER);
     assert_eq!(api::poll::rm_waiter_wait(waiter, 0), RM_OK);
     assert_eq!(api::poll::rm_waiter_unbind(waiter), RM_OK);
     assert_eq!(api::handle::rm_handle_release(waiter), RM_OK);

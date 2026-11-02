@@ -164,9 +164,12 @@ jobs:
           if [ -z "$NDK" ]; then NDK=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1); fi
           BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
           test -x "$BIN/x86_64-linux-android26-clang"
+          test -x "$BIN/llvm-ar"
           echo "CC_x86_64_linux_android=$BIN/x86_64-linux-android26-clang" >> "$GITHUB_ENV"
+          echo "AR_x86_64_linux_android=$BIN/llvm-ar" >> "$GITHUB_ENV"
           echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$BIN/x86_64-linux-android26-clang" >> "$GITHUB_ENV"
           echo "CC_aarch64_linux_android=$BIN/aarch64-linux-android26-clang" >> "$GITHUB_ENV"
+          echo "AR_aarch64_linux_android=$BIN/llvm-ar" >> "$GITHUB_ENV"
           echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$BIN/aarch64-linux-android26-clang" >> "$GITHUB_ENV"
       - name: ARM64 device library compile
         run: cargo check --locked --lib --target aarch64-linux-android

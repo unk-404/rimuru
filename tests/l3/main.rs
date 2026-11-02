@@ -23,7 +23,7 @@ async fn channel_terminal_state_can_be_awaited() {
     let a = Endpoint::bind("127.0.0.1:0".parse().unwrap(), config(1200)).unwrap();
     let b = Endpoint::bind("127.0.0.1:0".parse().unwrap(), config(1200)).unwrap();
     let session = a.connect_async(b.local_addr().unwrap()).await.unwrap();
-    let channel = session.channel(7).unwrap();
+    let channel = session.channel_async(7).await.unwrap();
     let (closed, observed) = tokio::time::timeout(Duration::from_secs(5), async {
         tokio::join!(channel.close_async(), channel.wait_closed_async())
     })

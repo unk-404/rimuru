@@ -353,8 +353,10 @@ mod tests {
         // SAFETY: live kqueue and initialized one-event output buffer.
         let count = unsafe { libc::kevent(kq, std::ptr::null(), 0, &mut event, 1, &timeout) };
         assert_eq!(count, 1);
-        assert_eq!(event.ident, ident);
-        assert_eq!(event.filter, libc::EVFILT_USER);
+        let event_ident = event.ident;
+        let event_filter = event.filter;
+        assert_eq!(event_ident, ident);
+        assert_eq!(event_filter, libc::EVFILT_USER);
         super::delete_kqueue(kq, ident).unwrap();
         unsafe { libc::close(kq) };
     }

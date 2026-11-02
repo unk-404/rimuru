@@ -91,8 +91,13 @@ impl ReliablePeer {
                     DeliveryOutcome::Aborted(reason)
                 }
             };
-            tx.signal.finish(outcome);
+            // A terminal ticket promises its outgoing frame permit is reusable.
+            // Drop Tx before waking waiters so a capacity-one sender can submit
+            // its next message immediately after observing completion.
+            let signal = tx.signal.clone();
             self.sent.insert(id, terminal);
+            drop(tx);
+            signal.finish(outcome);
         }
     }
 

@@ -8,29 +8,15 @@
 
 <img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Funk-404%2Frimuru%2Frefs%2Fheads%2Fmaster%2FCargo.toml&query=%24.package.version&style=flat-square&label=Version">
 
-[Getting started](#getting-started) · [Transport layers](#transport-layers) · [C API](#c-api) · [Versioning](#versioning) · [Development](#development)
-
 </div>
 
 ---
 
-Rimuru is a message-oriented transport library with unreliable frames, reliable messages, and ordered channels. Create an endpoint and the library manages its I/O runtime; applications do not need to construct one.
+`Rimuru` pursuing high-concurrency over UDP with **L1** *unreliable whole frames* - **L2** *reliable unordered messages* - **L3** *ordered per-channel*
 
 > The name is a nod to Rimuru Tempest from *That Time I Got Reincarnated as a Slime*. This is an independent project, unaffiliated with the original work or its rights holders. The banner is an original, generated illustration, not an official character or asset.
 
-## 🌋 Transport layers
-
-| Layer | Delivery | Use when |
-|:--|:--|:--|
-| **L1** | Whole frames, without retransmission or delivery guarantees | A missed update can be replaced by the next one |
-| **L2** | Reliable, whole messages without ordering | Every message matters, but messages are independent |
-| **L3** | Reliable, whole messages ordered within a channel | The order of events matters |
-
-Delivery guarantees depend on a live session, available resources, and successful recovery. Persistence across process crashes is outside the current scope. CRC32C detects accidental corruption; **Rimuru does not provide encryption or authentication**.
-
 ## 🍰 Getting started
-
-The first release is planned as `0.0.1-beta`. See [Cargo.toml](Cargo.toml) for the required Rust version.
 
 ``` rust
 use rimuru::{Endpoint, EndpointConfig};
@@ -60,7 +46,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 Rimuru owns its own I/O runtime, and its async methods can also be polled by other executors. Receive and ticket waits are event-driven; they do not poll on a timer. `recv_batch_async` waits for one frame and then drains currently available frames, up to the requested limit.
 
-For L3, create a channel with `session.channel(id)` and use `channel.submit_async(...)` or `channel.send_async(...)`. Synchronous methods remain available for non-async callers. Endpoint and session handles can be shared across threads. The default datagram size targets common networks; do not assume that a large loopback datagram is suitable for the public Internet.
+For L3, create a channel with `session.channel_async(id).await` and use `channel.submit_async(...)` or `channel.send_async(...)`. Synchronous methods remain available for non-async callers. Endpoint and session handles can be shared across threads. The default datagram size targets common networks; do not assume that a large loopback datagram is suitable for the public Internet.
 
 Run the complete example with `cargo run --example quickstart`.
 

@@ -118,6 +118,28 @@ fn application_held_credit_and_wait_timeout_do_not_cancel() {
     a.close().unwrap();
     b.close().unwrap();
 }
+
+#[test]
+fn completed_ticket_releases_capacity_before_waking_sender() {
+    let cfg = EndpointConfig {
+        frame_capacity: 1,
+        ..config(1200)
+    };
+    let a = Endpoint::bind("127.0.0.1:0".parse().unwrap(), cfg.clone()).unwrap();
+    let b = Endpoint::bind("127.0.0.1:0".parse().unwrap(), cfg).unwrap();
+    let s = a.connect(b.local_addr().unwrap()).unwrap();
+    for n in 0u8..100 {
+        let ticket = s
+            .submit_reliable(&[n])
+            .expect("previous ticket must release capacity");
+        let frame = b.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(frame.as_slice(), &[n]);
+        drop(frame);
+        ticket.wait_timeout(Duration::from_secs(5)).unwrap();
+    }
+    a.close().unwrap();
+    b.close().unwrap();
+}
 #[test]
 fn confirmed_cancel_before_grant_and_close_wakes_ticket() {
     let (a, b, s) = pair(1200);
